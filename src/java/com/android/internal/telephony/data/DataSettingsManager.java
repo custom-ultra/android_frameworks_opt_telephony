@@ -44,7 +44,6 @@ import com.android.internal.telephony.GlobalSettingsHelper;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.SettingsObserver;
 import com.android.internal.telephony.SubscriptionController;
-import com.android.internal.telephony.data.DataConfigManager.DataConfigManagerCallback;
 import com.android.telephony.Rlog;
 
 import java.io.FileDescriptor;
@@ -59,6 +58,8 @@ import java.util.stream.Collectors;
  * data roaming settings, etc...
  */
 public class DataSettingsManager extends Handler {
+    /** Event for data config updated. */
+    private static final int EVENT_DATA_CONFIG_UPDATED = 1;
     /** Event for call state changed. */
     private static final int EVENT_CALL_STATE_CHANGED = 2;
     /** Event for subscriptions updated. */
@@ -185,6 +186,12 @@ public class DataSettingsManager extends Handler {
     @Override
     public void handleMessage(Message msg) {
         switch (msg.what) {
+            case EVENT_DATA_CONFIG_UPDATED: {
+                if (mDataConfigManager.isConfigCarrierSpecific()) {
+                    setDefaultDataRoamingEnabled();
+                }
+                break;
+            }
             case EVENT_CALL_STATE_CHANGED: {
                 updateDataEnabledAndNotify(TelephonyManager.DATA_ENABLED_REASON_OVERRIDE);
                 break;
@@ -273,14 +280,7 @@ public class DataSettingsManager extends Handler {
      * Called when needed to register for all events that data network controller is interested.
      */
     private void onInitialize() {
-        mDataConfigManager.registerCallback(new DataConfigManagerCallback(this::post) {
-            @Override
-            public void onCarrierConfigChanged() {
-                if (mDataConfigManager.isConfigCarrierSpecific()) {
-                    setDefaultDataRoamingEnabled();
-                }
-            }
-        });
+        mDataConfigManager.registerForConfigUpdate(this, EVENT_DATA_CONFIG_UPDATED);
         mSettingsObserver.observe(Settings.Global.getUriFor(Settings.Global.DEVICE_PROVISIONED),
                 EVENT_PROVISIONED_CHANGED);
         mSettingsObserver.observe(

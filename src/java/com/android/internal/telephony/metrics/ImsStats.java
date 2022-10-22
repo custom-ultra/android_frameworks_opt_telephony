@@ -35,7 +35,6 @@ import android.os.SystemClock;
 import android.telephony.AccessNetworkConstants;
 import android.telephony.AccessNetworkConstants.TransportType;
 import android.telephony.Annotation.NetworkType;
-import android.telephony.ServiceState;
 import android.telephony.TelephonyManager;
 import android.telephony.ims.ImsReasonInfo;
 import android.telephony.ims.ProvisioningManager;
@@ -197,7 +196,7 @@ public class ImsStats {
 
     private long mLastTimestamp;
     @Nullable private ImsRegistrationStats mLastRegistrationStats;
-    @TransportType int mLastTransportType = AccessNetworkConstants.TRANSPORT_TYPE_INVALID;
+
     // Available features are those reported by ImsService to be available for use.
     private MmTelCapabilities mLastAvailableFeatures = new MmTelCapabilities();
 
@@ -266,10 +265,6 @@ public class ImsStats {
 
         boolean ratChanged = false;
         @NetworkType int newRat = convertRegistrationTechToNetworkType(radioTech);
-        mLastTransportType =
-                (newRat == TelephonyManager.NETWORK_TYPE_IWLAN)
-                        ? AccessNetworkConstants.TRANSPORT_TYPE_WLAN
-                        : AccessNetworkConstants.TRANSPORT_TYPE_WWAN;
         if (mLastRegistrationStats != null && mLastRegistrationStats.rat != newRat) {
             mLastRegistrationStats.rat = newRat;
             ratChanged = true;
@@ -306,7 +301,6 @@ public class ImsStats {
     public synchronized void onImsRegistering(@TransportType int imsRadioTech) {
         conclude();
 
-        mLastTransportType = imsRadioTech;
         mLastRegistrationStats = getDefaultImsRegistrationStats();
         mLastRegistrationStats.rat = convertTransportTypeToNetworkType(imsRadioTech);
         mLastRegistrationState = REGISTRATION_STATE_REGISTERING;
@@ -316,7 +310,6 @@ public class ImsStats {
     public synchronized void onImsRegistered(@TransportType int imsRadioTech) {
         conclude();
 
-        mLastTransportType = imsRadioTech;
         // NOTE: mLastRegistrationStats can be null (no registering phase).
         if (mLastRegistrationStats == null) {
             mLastRegistrationStats = getDefaultImsRegistrationStats();
@@ -352,14 +345,6 @@ public class ImsStats {
         mLastRegistrationState = REGISTRATION_STATE_NOT_REGISTERED;
         mLastRegistrationStats = null;
         mLastAvailableFeatures = new MmTelCapabilities();
-    }
-
-    /** Updates the RAT when service state changes. */
-    public synchronized void onServiceStateChanged(ServiceState state) {
-        if (mLastTransportType == AccessNetworkConstants.TRANSPORT_TYPE_WWAN
-                && mLastRegistrationStats != null) {
-            mLastRegistrationStats.rat = ServiceStateStats.getDataRat(state);
-        }
     }
 
     /**

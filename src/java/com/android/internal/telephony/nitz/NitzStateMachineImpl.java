@@ -178,11 +178,8 @@ public final class NitzStateMachineImpl implements NitzStateMachine {
 
     @Override
     public void handleNetworkUnavailable() {
-        boolean networkStateChanged = clearNetworkState(false /* fullyClearNitz */);
-        if (networkStateChanged) {
-            String reason = "handleNetworkUnavailable";
-            runDetection(reason);
-        }
+        String reason = "handleNetworkUnavailable";
+        clearNetworkStateAndRerunDetection(reason, false /* fullyClearNitz */);
     }
 
     @Override
@@ -249,20 +246,15 @@ public final class NitzStateMachineImpl implements NitzStateMachine {
         // while in airplane mode from influencing behavior afterwards.
         //
         // After clearing detection state, the time zone detection should work out from first
-        // principles what the time zone is. This assumes calls like handleNetworkAvailable() will
-        // be made after airplane mode is re-enabled as the device re-establishes network
+        // principles what the time / time zone is. This assumes calls like handleNetworkAvailable()
+        // will be made after airplane mode is re-enabled as the device re-establishes network
         // connectivity.
 
         // Clear country detection state.
-        boolean countryStateChanged = mCountryIsoCode != null;
         mCountryIsoCode = null;
 
-        boolean networkStateChanged = clearNetworkState(true /* fullyClearNitz */);
-
-        if (countryStateChanged || networkStateChanged) {
-            String reason = "handleAirplaneModeChanged(" + on + ")";
-            runDetection(reason);
-        }
+        String reason = "handleAirplaneModeChanged(" + on + ")";
+        clearNetworkStateAndRerunDetection(reason, true /* fullyClearNitz */);
     }
 
     private void restoreNetworkStateAndRerunDetection(String reason) {
@@ -297,17 +289,28 @@ public final class NitzStateMachineImpl implements NitzStateMachine {
         }
     }
 
-    private boolean clearNetworkState(boolean fullyClearNitz) {
+    private void clearNetworkStateAndRerunDetection(String reason, boolean fullyClearNitz) {
+        if (mLatestNitzSignal == null) {
+            if (fullyClearNitz) {
+                mLastNitzSignalCleared = null;
+            }
+
+            // The network state is already empty so there's no need to do anything.
+            if (DBG) {
+                Rlog.d(LOG_TAG, reason + ": mLatestNitzSignal was already null. Nothing to do.");
+            }
+            return;
+        }
+
         if (fullyClearNitz) {
             mLastNitzSignalCleared = null;
         } else {
             mLastNitzSignalCleared = new TimestampedValue<>(
                     mDeviceState.elapsedRealtimeMillis(), mLatestNitzSignal);
         }
-
-        boolean networkStateChanged = mLatestNitzSignal != null;
         mLatestNitzSignal = null;
-        return networkStateChanged;
+
+        runDetection(reason);
     }
 
     private void runDetection(String reason) {
